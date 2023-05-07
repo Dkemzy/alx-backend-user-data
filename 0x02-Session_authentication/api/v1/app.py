@@ -8,6 +8,12 @@ from flask import Flask, jsonify, abort, request
 from flask_cors import (CORS, cross_origin)
 import os
 
+from api.v1.auth.auth import Auth
+from api.v1.auth.basic_auth import BasicAuth
+from api.v1.auth.session_auth import SessionAuth
+from api.v1.auth.session_exp_auth import SessionExpAuth
+from api.v1.auth.session_db_auth import SessionDBAuth
+
 
 app = Flask(__name__)
 app.register_blueprint(app_views)
@@ -21,6 +27,18 @@ if os.getenv('AUTH_TYPE') == 'basic_auth':
     from api.v1.auth.basic_auth import BasicAuth
     auth = BasicAuth()
 
+if os.getenv('AUTH_TYPE') == 'session_auth':
+    from api.v1.auth.session_auth import SessionAuth
+    auth = SessionAuth()
+
+if os.getenv('AUTH_TYPE') == 'session_exp_auth':
+    from api.v1.auth.session_exp_auth import SessionExpAuth
+    auth = SessionExpAuth()
+
+if os.getenv('AUTH_TYPE') == 'session_db_auth':
+    from api.v1.auth.session_db_auth import SessionDBAuth
+    auth = SessionDBAuth()
+
 
 @app.before_request
 def before_req():
@@ -30,11 +48,14 @@ def before_req():
         return
     if auth.require_auth(request.path, ['/api/v1/status/',
                                         '/api/v1/unauthorized/',
-                                        '/api/v1/forbidden/']):
-        if not auth.authorization_header(request):
+                                        '/api/v1/forbidden/',
+                                        '/api/v1/auth_session/login/']):
+        if not auth.authorization_header(request)\
+                and not auth.session_cookie(request):
             abort(401)
         if not auth.current_user(request):
             abort(403)
+        request.current_user = auth.current_user(request)
 
 
 @app.errorhandler(404)
